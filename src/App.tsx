@@ -4,6 +4,8 @@ import { TransferForm } from "./components/TransferForm";
 import { BillsForm } from "./components/BillsForm";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { ReceiptModal } from "./components/ReceiptModal";
+import { CollectionsPanel } from "./components/CollectionsPanel";
+import { AIVoiceAssistant } from "./components/AIVoiceAssistant";
 import { 
   CreditCard, 
   ArrowUpRight, 
@@ -23,6 +25,7 @@ import {
   Activity, 
   HelpCircle,
   PlusCircle,
+  Coins,
   ShieldCheck,
   Loader2,
   Mail,
@@ -31,7 +34,9 @@ import {
   X,
   AlertTriangle,
   CheckCircle,
-  Info
+  Info,
+  Printer,
+  Download
 } from "lucide-react";
 
 interface ToastItem {
@@ -47,12 +52,15 @@ export default function App() {
   const [settings, setSettings] = useState<any>(null);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const [activeTab, setActiveTab] = useState<"transfer" | "bills" | "settings">("transfer");
+  const [activeTab, setActiveTab ] = useState<"transfer" | "bills" | "settings" | "collections">("transfer");
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+
+  // Gateway tracking balances state
+  const [gatewayBalances, setGatewayBalances] = useState<any>(null);
 
   // UI state managers
   const [copiedText, setCopiedText] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isRefreshing, setIsRefreshing ] = useState(false);
   
   // Virtual account creation dialog state
   const [showVAcctPrompt, setShowVAcctPrompt] = useState(false);
@@ -86,6 +94,17 @@ export default function App() {
       const notifResp = await fetch("/api/notifications");
       const notifData = await notifResp.json();
       setNotifications(notifData);
+
+      // Fetch live gate balances (Feature 1)
+      try {
+        const balResp = await fetch("/api/gateway/balances");
+        const balData = await balResp.json();
+        if (balData.success) {
+          setGatewayBalances(balData);
+        }
+      } catch (errBalances) {
+        console.warn("Could not retrieve developer gateway balances:", errBalances);
+      }
       
       // Auto-set the virtual acct registration fields if empty
       if (data.user) {
@@ -220,6 +239,32 @@ export default function App() {
     await fetchState();
   };
 
+  const handleExportCSV = () => {
+    if (transactions.length === 0) return;
+    const headers = ["ID", "Timestamp", "Type", "Amount", "Fee", "Status", "Reference", "Recipient_Or_Provider", "Memo"];
+    const rows = transactions.map(tx => [
+      tx.id,
+      new Date(tx.timestamp).toISOString(),
+      tx.type,
+      tx.amount,
+      tx.fee,
+      tx.status,
+      tx.reference,
+      tx.type === "incoming_transfer" ? (tx.senderName || "Inflow") : (tx.type === "outgoing_transfer" ? tx.recipientName : tx.billDetails?.provider || "Biller"),
+      tx.description || ""
+    ]);
+    const csvContent = [headers.join(","), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Fintech_Wallet_Ledger_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    triggerToast("Ledger Exported", "Your transaction receipt history spreadsheet CSV has been downloaded successfully.", "success");
+  };
+
   if (!user || !settings) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
@@ -303,6 +348,69 @@ export default function App() {
               </div>
             </div>
           </div>
+
+          {/* Card: Active Developer API Gateway balances */}
+          {gatewayBalances && (
+            <div className="bg-white rounded-3xl border border-slate-100 p-5 shadow-2xs space-y-3.5">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-800 font-display">Gateway Developer Balances</h4>
+                  <p className="text-[10px] text-slate-400">Live API wallet caches from providers</p>
+                </div>
+                <Activity className="w-4.5 h-4.5 text-indigo-500 animate-pulse" />
+              </div>
+
+              <div className="space-y-2.5 text-xs text-slate-700">
+                {/* Flutterwave live wallet card */}
+                <div className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border border-slate-200/50">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0"></span>
+                    <span className="font-semibold text-slate-750">Flutterwave Merchant</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-bold text-slate-900 block font-mono">
+                      ₦{gatewayBalances.flwBalance?.available?.toLocaleString("en-NG", { minimumFractionDigits: 2 })}
+                    </span>
+                    <span className="text-[9px] text-slate-400 uppercase tracking-widest font-mono">
+                      {gatewayBalances.flwBalance?.isSandbox ? "Simulated Balance" : "Live Account Cash"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Termii SMS API wallet */}
+                <div className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border border-slate-200/50">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                    <span className="font-semibold text-slate-750">Termii SMS API</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-bold text-slate-900 block font-mono text-indigo-750">
+                      ₦{gatewayBalances.termiiBalance?.balance?.toLocaleString("en-NG")}
+                    </span>
+                    <span className="text-[9px] text-slate-400 uppercase tracking-widest font-mono">
+                      {gatewayBalances.termiiBalance?.isSandbox ? "Simulated Units" : "Live SMS Units"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Nellobyte VTU Gateway Wallet */}
+                <div className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border border-slate-200/50">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-amber-505 shrink-0" style={{ backgroundColor: "#f97316" }}></span>
+                    <span className="font-semibold text-slate-750">Nellobyte VTU Gateway</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-bold text-slate-900 block font-mono text-indigo-750">
+                      ₦{gatewayBalances.nellobyteBalance?.balance?.toLocaleString("en-NG", { minimumFractionDigits: 2 })}
+                    </span>
+                    <span className="text-[9px] text-slate-400 uppercase tracking-widest font-mono">
+                      {gatewayBalances.nellobyteBalance?.isSandbox ? "Simulated Balance" : "Live Account Cash"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Card: Dedicated Virtual account specifications */}
           {user.virtualAccount ? (
@@ -394,10 +502,10 @@ export default function App() {
         <div className="lg:col-span-8 space-y-8">
           
           {/* Tabs header selector */}
-          <div className="flex border-b border-slate-200/80 gap-6 text-sm no-print font-medium">
+          <div className="flex border-b border-slate-200/80 gap-6 text-xs sm:text-sm no-print font-medium overflow-x-auto whitespace-nowrap">
             <button
               onClick={() => setActiveTab("transfer")}
-              className={`pb-3.5 border-b-2 font-display text-md cursor-pointer transition-all ${activeTab === "transfer" ? "border-indigo-600 text-indigo-600 font-bold" : "border-transparent text-slate-400 hover:text-slate-600"}`}
+              className={`pb-3.5 border-b-2 font-display text-xs sm:text-md cursor-pointer transition-all ${activeTab === "transfer" ? "border-indigo-600 text-indigo-600 font-bold" : "border-transparent text-slate-400 hover:text-slate-600"}`}
               id="tab-act-transfer"
             >
               Direct Bank Transfer
@@ -405,18 +513,27 @@ export default function App() {
             
             <button
               onClick={() => setActiveTab("bills")}
-              className={`pb-3.5 border-b-2 font-display text-md cursor-pointer transition-all ${activeTab === "bills" ? "border-indigo-600 text-indigo-600 font-bold" : "border-transparent text-slate-400 hover:text-slate-600"}`}
+              className={`pb-3.5 border-b-2 font-display text-xs sm:text-md cursor-pointer transition-all ${activeTab === "bills" ? "border-indigo-600 text-indigo-600 font-bold" : "border-transparent text-slate-400 hover:text-slate-600"}`}
               id="tab-act-bills"
             >
               Bills & Utilities
             </button>
 
             <button
+              onClick={() => setActiveTab("collections")}
+              className={`pb-3.5 border-b-2 font-display text-xs sm:text-md flex items-center gap-1.5 cursor-pointer transition-all ${activeTab === "collections" ? "border-indigo-600 text-indigo-600 font-bold" : "border-transparent text-slate-400 hover:text-slate-600"}`}
+              id="tab-act-collections"
+            >
+              <Coins className="w-4 h-4 text-slate-400 shrink-0" />
+              <span>Collections & KYC</span>
+            </button>
+
+            <button
               onClick={() => setActiveTab("settings")}
-              className={`pb-3.5 border-b-2 font-display text-md flex items-center gap-1.5 cursor-pointer transition-all ${activeTab === "settings" ? "border-indigo-600 text-indigo-600 font-bold" : "border-transparent text-slate-400 hover:text-slate-600"}`}
+              className={`pb-3.5 border-b-2 font-display text-xs sm:text-md flex items-center gap-1.5 cursor-pointer transition-all ${activeTab === "settings" ? "border-indigo-600 text-indigo-600 font-bold" : "border-transparent text-slate-400 hover:text-slate-600"}`}
               id="tab-act-settings"
             >
-              <Sliders className="w-4 h-4" />
+              <Sliders className="w-4 h-4 shrink-0" />
               <span>Sandbox Console</span>
             </button>
           </div>
@@ -429,6 +546,15 @@ export default function App() {
 
             {activeTab === "bills" && (
               <BillsForm user={user} onBillSuccess={handleBillCompleted} />
+            )}
+
+            {activeTab === "collections" && (
+              <CollectionsPanel 
+                user={user} 
+                banksList={[]}
+                onRefreshAll={fetchState}
+                triggerToast={triggerToast}
+              />
             )}
 
             {activeTab === "settings" && (
@@ -445,12 +571,36 @@ export default function App() {
 
           {/* Table list block: Transaction histories */}
           <div className="bg-white rounded-2xl border border-slate-100 p-6 md:p-8 shadow-xs relative no-print">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
               <div>
                 <h3 className="text-lg font-bold font-display text-slate-800">Transaction Receipts Log</h3>
                 <p className="text-xs text-slate-400 mt-0.5">Click any record below to view and print automated receipts</p>
               </div>
-              <FileText className="w-5 h-5 text-slate-400" />
+              <div className="flex items-center gap-2">
+                {transactions.length > 0 && (
+                  <button
+                    onClick={handleExportCSV}
+                    className="px-3 py-1.5 bg-slate-50 border border-slate-200 hover:border-indigo-400 rounded-xl text-xs font-bold text-slate-705 hover:text-indigo-650 transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                    id="export-csv-btn"
+                    title="Export Ledger Spreadsheet"
+                  >
+                    <Download className="w-3.5 h-3.5 shrink-0" />
+                    <span>CSV</span>
+                  </button>
+                )}
+                {transactions.length > 0 && (
+                  <button
+                    onClick={() => window.print()}
+                    className="px-3 py-1.5 bg-slate-50 border border-slate-200 hover:border-indigo-400 rounded-xl text-xs font-bold text-slate-705 hover:text-indigo-650 transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                    id="print-ledger-btn"
+                    title="Print Core Ledger"
+                  >
+                    <Printer className="w-3.5 h-3.5 shrink-0" />
+                    <span>Print</span>
+                  </button>
+                )}
+                <FileText className="w-5 h-5 text-slate-400 hidden sm:block" />
+              </div>
             </div>
 
             {transactions.length === 0 ? (
@@ -731,6 +881,14 @@ export default function App() {
           );
         })}
       </div>
+
+      {user && (
+        <AIVoiceAssistant 
+          user={user} 
+          onRefreshAll={fetchState} 
+          triggerToast={triggerToast} 
+        />
+      )}
 
       <style>{`
         @keyframes slideIn {

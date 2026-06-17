@@ -48,6 +48,22 @@ export function SettingsPanel({
   const [resetting, setResetting] = useState(false);
   const [apiFeedback, setApiFeedback] = useState<string | null>(null);
 
+  // Auto-resolve whitelisting IP addresses
+  const [publicIp, setPublicIp] = useState("Loading IP...");
+  
+  React.useEffect(() => {
+    fetch("/api/ip")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.ip) {
+          setPublicIp(data.ip);
+        } else {
+          setPublicIp("Manual configure needed");
+        }
+      })
+      .catch(() => setPublicIp("Manual configure needed"));
+  }, []);
+
   const handleToggleMode = async (targetMode: "sandbox" | "live") => {
     setMode(targetMode);
     setApiFeedback(null);
@@ -283,6 +299,44 @@ export function SettingsPanel({
             )}
           </button>
         </form>
+
+        {/* IP Whitelisting Info Guide */}
+        <div className="space-y-4">
+          <div className="p-5 bg-slate-50 border border-slate-200 rounded-3xl space-y-3.5">
+            <h4 className="text-xs font-bold text-slate-800 flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              Flutterwave Live IP Whitelist Config
+            </h4>
+            
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              When using Flutterwave Live mode payouts, Flutterwave strictly mandates whitelisting your server's outbound requests to prevent unauthorized payout calls.
+            </p>
+
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block font-mono">
+                Your Public Server Outbound IP:
+              </span>
+              <div className="flex items-center gap-2">
+                <code className="px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono text-indigo-600 font-bold flex-1 select-all break-all shadow-3xs" id="copyable-outbound-ip">
+                  {publicIp}
+                </code>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-200/60 space-y-2">
+              <span className="text-[11px] font-bold text-slate-700 block">
+                How to set up on Flutterwave Dashboard:
+              </span>
+              <ol className="list-decimal pl-4 text-[11px] text-slate-550 space-y-1.5 leading-normal">
+                <li>Log in to your <strong>Live Flutterwave Merchant Dashboard</strong>.</li>
+                <li>Navigate to <strong>Settings</strong> &raquo; <strong>Developer Menu</strong> &raquo; <strong>API Keys</strong>.</li>
+                <li>Find the <strong>IP Whitelist</strong> text area input field.</li>
+                <li>Paste your server outbound IP: <code className="text-indigo-650 bg-white font-bold px-1 py-0.5 border border-slate-100 rounded">{publicIp}</code> into it.</li>
+                <li>Click <strong>Save Changes</strong> to lock it down.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
 
         {/* Segment 2: Inbound Funds Direct Simulate Webhook */}
         <div className="space-y-4">

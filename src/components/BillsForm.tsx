@@ -55,6 +55,46 @@ export function BillsForm({ user, onBillSuccess }: BillsFormProps) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  // Pre-payment validation states for cables & electricity (Feature 2)
+  const [validatedOwner, setValidatedOwner] = useState<string | null>(null);
+  const [isValidatingOwner, setIsValidatingOwner] = useState(false);
+
+  // Auto validate when meter or provider changes
+  React.useEffect(() => {
+    let active = true;
+    const triggerValidation = async () => {
+      if ((activeTab === "electricity" || activeTab === "cable") && meterNumber.length >= 10 && providerId) {
+        setIsValidatingOwner(true);
+        setValidatedOwner(null);
+        try {
+          const res = await fetch("/api/bills/validate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ billType: activeTab, providerId, meterNumber })
+          });
+          const data = await res.json();
+          if (active) {
+            if (res.ok && data.success) {
+              setValidatedOwner(data.customerName);
+            } else {
+              setValidatedOwner(null);
+            }
+          }
+        } catch (err) {
+          console.warn("Pre-billing meter validation request failed", err);
+        } finally {
+          if (active) setIsValidatingOwner(false);
+        }
+      } else {
+        setValidatedOwner(null);
+      }
+    };
+    triggerValidation();
+    return () => {
+      active = false;
+    };
+  }, [meterNumber, providerId, activeTab]);
+
   // Auto-set amount for data & cable products that have fixed prices
   const handleProviderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const id = e.target.value;
@@ -272,6 +312,18 @@ export function BillsForm({ user, onBillSuccess }: BillsFormProps) {
               required
               id="bill-meter-input"
             />
+            {isValidatingOwner && (
+              <span className="text-[10px] text-indigo-500 font-semibold animate-pulse flex items-center gap-1 mt-0.5" id="billing-resolving-label">
+                <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce"></span>
+                Verifying ownership registry on Nellobyte Core API...
+              </span>
+            )}
+            {validatedOwner && (
+              <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1 mt-0.5" id="billing-owner-badge">
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
+                Verified Customer Name: {validatedOwner}
+              </span>
+            )}
           </div>
         )}
 

@@ -14,6 +14,20 @@ export interface UserProfile {
   balance: number;
   virtualAccount: VirtualAccount | null;
   pin: string;
+  kycStatus?: 'unverified' | 'pending' | 'verified';
+  kycBvn?: string;
+  dynamicAccounts?: Array<{
+    id: string;
+    accountNumber: string;
+    accountName: string;
+    bankName: string;
+    amount: number;
+    description: string;
+    expiry: string;
+    status: 'active' | 'expired' | 'paid';
+    reference: string;
+    createdAt: string;
+  }>;
 }
 
 export interface Transaction {
