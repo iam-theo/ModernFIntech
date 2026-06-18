@@ -1,0 +1,70 @@
+{
+  "user": {
+    "id": "usr_theo_desmon",
+    "fullName": "Theo Desmon",
+    "email": "TheoDesmon71@gmail.com",
+    "phone": "08123456789",
+    "balance": 452000,
+    "pin": "1234",
+    "virtualAccount": {
+      "accountNumber": "9021831843",
+      "accountName": "Theo Desmon / Fintech Demo",
+      "bankName": "Wema Bank FLW",
+      "orderRef": "flw-demo-virtual-acct",
+      "bvn": "22233445566"
+    }
+  },
+  "transactions": [
+    {
+      "id": "tx_init_balance",
+      "userId": "usr_theo_desmon",
+      "type": "incoming_transfer",
+      "amount": 500000,
+      "fee": 0,
+      "description": "Genesis Account Funding",
+      "status": "success",
+      "reference": "TX-GENESIS-2026",
+      "timestamp": "2026-06-15T19:43:00.284Z",
+      "senderName": "Flutterwave Allocator",
+      "senderAccount": "8841773199",
+      "senderBank": "Standard Chartered Bank"
+    },
+    {
+      "id": "tx_first_bill",
+      "userId": "usr_theo_desmon",
+      "type": "bill_payment",
+      "amount": 48000,
+      "fee": 100,
+      "description": "AEDC Token Purchase",
+      "status": "success",
+      "reference": "TX-BILL-AEDC-9482",
+      "timestamp": "2026-06-18T07:43:00.284Z",
+      "billType": "electricity",
+      "billDetails": {
+        "meterNumber": "45091841399",
+        "provider": "Abuja Electricity (AEDC)"
+      }
+    }
+  ],
+  "notifications": [
+    {
+      "id": "nt_init",
+      "type": "push",
+      "recipient": "TheoDesmon71@gmail.com",
+      "title": "System Ready",
+      "message": "Welcome to the Fintech Dashboard. Real-time Toast Alerts and Termii SMS services are successfully live!",
+      "status": "delivered",
+      "timestamp": "2026-06-18T19:43:00.284Z"
+    }
+  ],
+  "apiSettings": {
+    "mode": "live",
+    "flutterwavePublicKey": "",
+    "flutterwaveSecretKey": "",
+    "nellobyteApiKey": "",
+    "nellobyteUserId": "",
+    "termiiApiKey": "",
+    "termiiSenderId": "FW_ALERT",
+    "termiiChannel": "generic"
+  }
+}
