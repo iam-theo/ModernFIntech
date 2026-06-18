@@ -1480,10 +1480,10 @@ app.post("/api/transfer/snap-scan", async (req, res) => {
       rawExtracted: response.text
     });
   } catch (error: any) {
-    console.warn("[Gemini API Vision Scan OCR Failure]:", error);
+    console.warn("[Vision Scan OCR Failure]:", error);
     return res.status(500).json({
       success: false,
-      message: `Gemini OCR parsing handshake failed: ${error.message}`
+      message: ` OCR parsing handshake failed: ${error.message}`
     });
   }
 });
@@ -1770,7 +1770,7 @@ OPERATION INSTRUCTIONS:
     console.warn("[AI Voice Assistant Handshake Failed]:", error);
     return res.status(500).json({
       success: false,
-      message: `Failed loading speech parameters via Gemini: ${error.message}`
+      message: `Failed loading speech parameters : ${error.message}`
     });
   }
 });
