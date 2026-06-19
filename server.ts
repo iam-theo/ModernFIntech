@@ -123,12 +123,12 @@ function getDb() {
       ],
       apiSettings: {
         mode: "sandbox", // can be "sandbox" or "live"
-        flutterwavePublicKey: "",
-        flutterwaveSecretKey: "",
-        nellobyteApiKey: "",
-        nellobyteUserId: "",
-        termiiApiKey: "",
-        termiiSenderId: "FW_ALERT",
+        flutterwavePublicKey: "FLWPUBK-ec2ab22509dfc3b9e0cecfad305f6e0e-X",
+        flutterwaveSecretKey: "FLWSECK-313d8a9bc44b841577267cc922e24010-19eddbb3ce5vt-X",
+        nellobyteApiKey: "PBMT4H97M974QDK8D0P46U7NA01D5E2849ETM9WZ6657VYMQTK15368WK64NG48K",
+        nellobyteUserId: "CK100028738",
+        termiiApiKey: "TLZugUiorQTxeDaIyTOScmNBcoTnuzYFKQiPHHSptRcwLsNTdzwRFDHVWptPOm",
+        termiiSenderId: "Auracle",
         termiiChannel: "generic"
       }
     };
