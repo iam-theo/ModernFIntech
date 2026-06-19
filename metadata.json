@@ -1,6 +1,6 @@
 {
-  "name": "Fintech App with Flutterwave and Nellobyte",
-  "description": "A full-stack fintech dashboard featuring Flutterwave integration for virtual accounts and transfers, automated transaction receipts, and bills payment powered by the Nellobyte API.",
+  "name": "WhoPay",
+  "description": "Payments made Easy.",
   "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
