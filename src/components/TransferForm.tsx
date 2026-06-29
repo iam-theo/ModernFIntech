@@ -188,8 +188,10 @@ export function TransferForm({ user, onTransferSuccess }: TransferFormProps) {
           // Fill inputs
           if (data.accountNumber) setAccountNumber(data.accountNumber);
           
-          // Match bankCode
-          if (data.bankName) {
+          if (data.bankCode) {
+            setBankCode(data.bankCode);
+            setOcrSuccessMsg(`AI Vision OCR matches: ${data.bankName || 'Standard Bank'}`);
+          } else if (data.bankName) {
             const normalizedTag = data.bankName.toLowerCase();
             const matchedBank = banksList.find(b => 
               normalizedTag.includes(b.name.toLowerCase()) || 

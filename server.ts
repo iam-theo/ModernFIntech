@@ -1479,9 +1479,76 @@ app.post("/api/transfer/snap-scan", async (req, res) => {
     });
 
     const parsedOCR = JSON.parse(response.text || "{}");
+    let { bankName, accountNumber, accountName } = parsedOCR;
+
+    // Clean up accountNumber: strip all non-numeric characters
+    let cleanAccountNumber = (accountNumber || "").toString().replace(/\D/g, "");
+
+    // Resolve standard bank
+    let resolvedBank = null;
+    const extractedBankName = (bankName || "").toLowerCase();
+
+    if (extractedBankName) {
+      resolvedBank = NIGERIAN_BANKS.find(b => 
+        extractedBankName.includes(b.name.toLowerCase()) || 
+        b.name.toLowerCase().includes(extractedBankName) ||
+        extractedBankName.includes(b.name.split(" ")[0].toLowerCase())
+      );
+    }
+
+    let bankCode = "";
+    if (resolvedBank) {
+      bankCode = resolvedBank.code;
+      bankName = resolvedBank.name;
+    }
+
+    // If account number is 10 digits, resolve accountName
+    if (cleanAccountNumber.length === 10 && bankCode) {
+      const db = getDb();
+      const isLive = db.apiSettings?.mode === "live" && db.apiSettings?.flutterwaveSecretKey;
+      if (isLive) {
+        try {
+          const resolveResp = await fetch("https://api.flutterwave.com/v3/accounts/resolve", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${db.apiSettings.flutterwaveSecretKey}`
+            },
+            body: JSON.stringify({
+              account_number: cleanAccountNumber,
+              account_bank: bankCode
+            })
+          });
+          const resolveData = await resolveResp.json();
+          if (resolveData.status === "success" && resolveData.data) {
+            accountName = resolveData.data.account_name;
+          }
+        } catch (_) {}
+      } else {
+        const firstDigit = cleanAccountNumber[0] || "5";
+        const lastDigit = cleanAccountNumber[cleanAccountNumber.length - 1] || "3";
+        const mappedNames: Record<string, string> = {
+          "0": "Amina Dangote",
+          "1": "Ngozi Obi",
+          "2": "Chidi Nwachukwu",
+          "3": "Emeka Adebayo",
+          "4": "Olawale Sanusi",
+          "5": "Zubairu Mahmud",
+          "6": "Yusuf Oyedepo",
+          "7": "Chinyere Alao",
+          "8": "Florence Otedola",
+          "9": "Bature Gambo"
+        };
+        accountName = `${mappedNames[firstDigit] || "Femi"} ${mappedNames[lastDigit] || "Ibrahim"}`;
+      }
+    }
+
     return res.json({
       success: true,
-      ...parsedOCR,
+      bankName: bankName || parsedOCR.bankName,
+      bankCode: bankCode,
+      accountNumber: cleanAccountNumber || accountNumber,
+      accountName: accountName || parsedOCR.accountName,
       rawExtracted: response.text
     });
   } catch (error: any) {
