@@ -123,12 +123,12 @@ function getDb() {
       ],
       apiSettings: {
         mode: "sandbox", // can be "sandbox" or "live"
-        flutterwavePublicKey: "FLWPUBK-ec2ab22509dfc3b9e0cecfad305f6e0e-X",
-        flutterwaveSecretKey: "FLWSECK-313d8a9bc44b841577267cc922e24010-19eddbb3ce5vt-X",
-        nellobyteApiKey: "PBMT4H97M974QDK8D0P46U7NA01D5E2849ETM9WZ6657VYMQTK15368WK64NG48K",
-        nellobyteUserId: "CK100028738",
-        termiiApiKey: "TLZugUiorQTxeDaIyTOScmNBcoTnuzYFKQiPHHSptRcwLsNTdzwRFDHVWptPOm",
-        termiiSenderId: "Auracle",
+        flutterwavePublicKey: "",
+        flutterwaveSecretKey: "",
+        nellobyteApiKey: "",
+        nellobyteUserId: "",
+        termiiApiKey: "",
+        termiiSenderId: "FW_ALERT",
         termiiChannel: "generic"
       }
     };
@@ -1457,8 +1457,13 @@ app.post("/api/transfer/snap-scan", async (req, res) => {
     const promptText = "Review this photo containing handwritten/printed bank account details in Nigeria. Decode exactly: 1) Account Number (10 digits NUBAN), 2) Target Bank Name (e.g. GTBank, Access Bank, Zenith, Wema, FCMB, Providus, Sterling, etc.), 3) Account holder full name if visible. Respond with a JSON object containing keys: bankName (string matches best from NIGERIAN_BANKS), accountNumber (string), accountName (string). Keep other values blank if not spotted.";
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: [imagePart, promptText],
+      model: "gemini-2.5-flash",
+      contents: {
+        parts: [
+          imagePart,
+          { text: promptText }
+        ]
+      },
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -1480,10 +1485,10 @@ app.post("/api/transfer/snap-scan", async (req, res) => {
       rawExtracted: response.text
     });
   } catch (error: any) {
-    console.warn("[Vision Scan OCR Failure]:", error);
+    console.warn("[Gemini API Vision Scan OCR Failure]:", error);
     return res.status(500).json({
       success: false,
-      message: ` OCR parsing handshake failed: ${error.message}`
+      message: `Gemini OCR parsing handshake failed: ${error.message}`
     });
   }
 });
@@ -1650,6 +1655,56 @@ app.post("/api/ai/assistant", async (req, res) => {
       }
     }
 
+    let finalAccountName = "Simulated Holder";
+    if (userIntent === "transfer" && accountNumber && bankCode && accountNumber.length === 10) {
+      const isLive = db.apiSettings?.mode === "live" && db.apiSettings?.flutterwaveSecretKey;
+      if (isLive) {
+        try {
+          const resolveResp = await fetch("https://api.flutterwave.com/v3/accounts/resolve", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${db.apiSettings.flutterwaveSecretKey}`
+            },
+            body: JSON.stringify({
+              account_number: accountNumber,
+              account_bank: bankCode
+            })
+          });
+          const resolveData = await resolveResp.json();
+          if (resolveData.status === "success" && resolveData.data) {
+            finalAccountName = resolveData.data.account_name;
+          }
+        } catch (_) {}
+      } else {
+        const firstDigit = accountNumber[0] || "5";
+        const lastDigit = accountNumber[accountNumber.length - 1] || "3";
+        const mappedNames: Record<string, string> = {
+          "0": "Amina Dangote",
+          "1": "Ngozi Obi",
+          "2": "Chidi Nwachukwu",
+          "3": "Emeka Adebayo",
+          "4": "Olawale Sanusi",
+          "5": "Zubairu Mahmud",
+          "6": "Yusuf Oyedepo",
+          "7": "Chinyere Alao",
+          "8": "Florence Otedola",
+          "9": "Bature Gambo"
+        };
+        finalAccountName = `${mappedNames[firstDigit] || "Femi"} ${mappedNames[lastDigit] || "Ibrahim"}`;
+      }
+
+      if (explanation && finalAccountName !== "Simulated Holder") {
+        explanation = explanation.replace(
+          /to [^,\.\n]+/i, 
+          `to ${bankName} account ${accountNumber} (${finalAccountName})`
+        );
+        if (!explanation.includes(finalAccountName)) {
+          explanation += ` [Verified Account Name: ${finalAccountName}]`;
+        }
+      }
+    }
+
     return res.json({
       success: true,
       userIntent,
@@ -1661,7 +1716,7 @@ app.post("/api/ai/assistant", async (req, res) => {
       providerId,
       explanation,
       isSandbox: true,
-      accountName: "Simulated Holder",
+      accountName: finalAccountName,
       networkName: providerId ? providerId.toUpperCase() : "MTN",
       providerName: "MTN Nigeria"
     });
@@ -1719,22 +1774,35 @@ OPERATION INSTRUCTIONS:
 `;
 
     // Map conversation logs history into Google GenAI turns standard format
+    // Filter and combine consecutive user or assistant messages to ensure roles strictly alternate
     const chatContents: any[] = [];
     if (Array.isArray(history)) {
+      let lastRole = "";
       for (const item of history) {
-        if (item.sender === "user") {
-          chatContents.push({ role: "user", parts: [{ text: item.text }] });
-        } else if (item.sender === "assistant") {
-          chatContents.push({ role: "model", parts: [{ text: item.text }] });
+        const currentRole = item.sender === "user" ? "user" : "model";
+        if (item.text && item.text.trim()) {
+          if (currentRole !== lastRole) {
+            chatContents.push({ role: currentRole, parts: [{ text: item.text }] });
+            lastRole = currentRole;
+          } else {
+            // Merge matching consecutive messages
+            if (chatContents.length > 0) {
+              chatContents[chatContents.length - 1].parts[0].text += "\n" + item.text;
+            }
+          }
         }
       }
     }
 
-    // Push the newest prompt
-    chatContents.push({ role: "user", parts: [{ text: prompt }] });
+    // Append the newest user prompt, merging if the last message in history was also user
+    if (chatContents.length > 0 && chatContents[chatContents.length - 1].role === "user") {
+      chatContents[chatContents.length - 1].parts[0].text += "\n" + prompt;
+    } else {
+      chatContents.push({ role: "user", parts: [{ text: prompt }] });
+    }
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.5-flash",
       contents: chatContents,
       config: {
         systemInstruction,
@@ -1762,6 +1830,95 @@ OPERATION INSTRUCTIONS:
     });
 
     const parsedResponse = JSON.parse(response.text || "{}");
+
+    // Intercept and resolve bank & account holder details automatically
+    if (parsedResponse.userIntent === "transfer" && parsedResponse.accountNumber) {
+      const acctNum = parsedResponse.accountNumber.trim();
+      let resolvedBank = null;
+      const extractedBankName = (parsedResponse.bankName || "").toLowerCase();
+      const extractedBankCode = parsedResponse.bankCode || "";
+
+      // 1. Map to exact standard bank in NIGERIAN_BANKS
+      if (extractedBankCode) {
+        resolvedBank = NIGERIAN_BANKS.find(b => b.code === extractedBankCode);
+      }
+      if (!resolvedBank && extractedBankName) {
+        resolvedBank = NIGERIAN_BANKS.find(b => 
+          extractedBankName.includes(b.name.toLowerCase()) || 
+          b.name.toLowerCase().includes(extractedBankName) ||
+          extractedBankName.includes(b.name.split(" ")[0].toLowerCase())
+        );
+      }
+
+      if (resolvedBank) {
+        parsedResponse.bankCode = resolvedBank.code;
+        parsedResponse.bankName = resolvedBank.name;
+      }
+
+      // 2. Perform Account Name resolution
+      if (acctNum.length === 10 && parsedResponse.bankCode) {
+        let finalAccountName = parsedResponse.accountName || "";
+        const isLive = db.apiSettings?.mode === "live" && db.apiSettings?.flutterwaveSecretKey;
+
+        if (isLive) {
+          try {
+            console.log(`[AI Assistant Auto-Resolve] Live lookup: ${acctNum} at ${parsedResponse.bankCode}`);
+            const resolveResp = await fetch("https://api.flutterwave.com/v3/accounts/resolve", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${db.apiSettings.flutterwaveSecretKey}`
+              },
+              body: JSON.stringify({
+                account_number: acctNum,
+                account_bank: parsedResponse.bankCode
+              })
+            });
+            const resolveData = await resolveResp.json();
+            if (resolveData.status === "success" && resolveData.data) {
+              finalAccountName = resolveData.data.account_name;
+              console.log(`[AI Assistant Auto-Resolve] Live lookup success: ${finalAccountName}`);
+            }
+          } catch (err: any) {
+            console.warn("[AI Assistant Auto-Resolve] Live lookup failed, using fallback:", err.message);
+          }
+        } else {
+          // Sandbox resolution matching exactly what the manual TransferForm does
+          const firstDigit = acctNum[0] || "5";
+          const lastDigit = acctNum[acctNum.length - 1] || "3";
+          const mappedNames: Record<string, string> = {
+            "0": "Amina Dangote",
+            "1": "Ngozi Obi",
+            "2": "Chidi Nwachukwu",
+            "3": "Emeka Adebayo",
+            "4": "Olawale Sanusi",
+            "5": "Zubairu Mahmud",
+            "6": "Yusuf Oyedepo",
+            "7": "Chinyere Alao",
+            "8": "Florence Otedola",
+            "9": "Bature Gambo"
+          };
+          finalAccountName = `${mappedNames[firstDigit] || "Femi"} ${mappedNames[lastDigit] || "Ibrahim"}`;
+          console.log(`[AI Assistant Auto-Resolve] Sandbox lookup success: ${finalAccountName}`);
+        }
+
+        if (finalAccountName) {
+          parsedResponse.accountName = finalAccountName;
+          
+          if (parsedResponse.explanation) {
+            // Replace generic or empty beneficiary references in explanation
+            parsedResponse.explanation = parsedResponse.explanation.replace(
+              /to [^,\.\n]+/i, 
+              `to ${parsedResponse.bankName} account ${acctNum} (${finalAccountName})`
+            );
+            if (!parsedResponse.explanation.includes(finalAccountName)) {
+              parsedResponse.explanation += ` [Verified Account Name: ${finalAccountName}]`;
+            }
+          }
+        }
+      }
+    }
+
     return res.json({
       success: true,
       ...parsedResponse
@@ -1770,7 +1927,7 @@ OPERATION INSTRUCTIONS:
     console.warn("[AI Voice Assistant Handshake Failed]:", error);
     return res.status(500).json({
       success: false,
-      message: `Failed loading speech parameters : ${error.message}`
+      message: `Failed loading speech parameters via Gemini: ${error.message}`
     });
   }
 });

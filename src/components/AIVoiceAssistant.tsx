@@ -52,7 +52,7 @@ export function AIVoiceAssistant({ user, onRefreshAll, triggerToast }: AIVoiceAs
     {
       id: "welcome",
       sender: "assistant",
-      text: `Hello ${user.fullName.split(" ")[0]}! I'm AureX, your AI Assistant. Click the Mic to say instructions like: "Transfer 5000 NGN to Access Bank account 1234567890" or "Recharge MTN airtime of 1000 NGN for 0812345678"`,
+      text: `Hello ${user.fullName.split(" ")[0]}! I'm your Flutterwave voice broker. Click the Mic to say instructions like: "Transfer 5000 NGN to Access Bank account 1234567890" or "Recharge MTN airtime of 1000 NGN for 0812345678"`,
       timestamp: new Date()
     }
   ]);
@@ -218,16 +218,16 @@ export function AIVoiceAssistant({ user, onRefreshAll, triggerToast }: AIVoiceAs
             bankCode: draft.bankCode,
             bankName: draft.bankName || "Commercial Bank",
             accountNumber: draft.accountNumber,
-            recipientName: draft.accountName || "Aurex Smart Assistant",
+            recipientName: draft.accountName || "AI Voice Receiver",
             amount: draft.amount,
-            narration: "Aurex Smart Assistant",
+            narration: "AI Speech Dispatch",
             pin: transactionPin
           })
         });
         const data = await response.json();
         if (data.success) {
           setTxSuccessMessage(`Disbursed ₦${draft.amount.toLocaleString()} successfully to ${draft.accountName || draft.bankName || 'recipient'}.`);
-          triggerToast("Disbursement Success", `Sent ₦${draft.amount} via Aurex Smart Assistant.`, "success");
+          triggerToast("Disbursement Success", `Sent ₦${draft.amount} via AI Voice broker.`, "success");
           onRefreshAll();
           setTransactionPin("");
         } else {
@@ -313,10 +313,10 @@ export function AIVoiceAssistant({ user, onRefreshAll, triggerToast }: AIVoiceAs
                 <Sparkles className="w-4 h-4 animate-pulse" />
               </div>
               <div>
-                <h3 className="text-sm font-bold font-display text-slate-800">AureX </h3>
+                <h3 className="text-sm font-bold font-display text-slate-800">AI Speech Broker</h3>
                 <span className="text-[10px] text-indigo-600 font-bold flex items-center gap-1 mt-0.5">
                   <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-ping"></span>
-                  Smart AI Transact
+                  Gemini Voice Transact
                 </span>
               </div>
             </div>
